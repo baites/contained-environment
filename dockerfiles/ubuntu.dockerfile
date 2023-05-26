@@ -1,15 +1,15 @@
 # Ubuntu ienv dockerfile template
 
 # Base image
-from Ubuntu
+FROM Ubuntu
 
 # Set the environment
-arg DEBIAN_FRONTEND=noninteractive
+ARG DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies
-run apt-get update
-run apt-get -y install git sudo ssh vim
+RUN apt-get update
+RUN apt-get -y install git sudo ssh vim
 
 # Update time zone for tzdata
-run ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime
-run dpkg-reconfigure --frontend noninteractive tzdata
+RUN ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime
+RUN dpkg-reconfigure --frontend noninteractive tzdata

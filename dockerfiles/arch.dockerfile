@@ -1,8 +1,8 @@
 # Arch ienv dockerfile template
 
 # Base image
-from archlinux
+FROM archlinux
 
 # Install package dependencies
-run pacman --noconfirm -Syyu
-run pacman --noconfirm -S git openssh sudo vim
+RUN pacman --noconfirm -Syyu
+RUN pacman --noconfirm -S git openssh sudo vim
