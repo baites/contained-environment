@@ -1,0 +1,57 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+
+# Check if docker executable is in path
+if ! which docker >/dev/null; then
+  echo "Cannot find docker executable."
+fi
+
+# Parse the options
+options=$(
+  getopt \
+    --longoptions help --name "$(basename "$0")" \
+    --options "" \
+    -- "$@"
+)
+if [ $? -eq 1 ]; then
+  echo "Error: Incorrect options provided"
+  exit 1
+fi
+
+# Parse input arguments
+eval set -- "$options"
+while true; do
+  case "$1" in
+    --help)
+      echo "Usage: $0 [--help] [options] container"
+      echo "    --help            Display this help message."
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+  esac
+  shift
+done
+
+# Parse container name
+CONTAINER_NAME=$1
+
+# Check if container exist
+if [ -z "$(docker ps -aq -f name="$CONTAINER_NAME")" ]; then
+  echo "Error: $CONTAINER_NAME does not exist."
+fi
+
+# Collect user information
+USER_NAME=$(id -un)
+
+# Start container (if needed)
+if [ -n "$(docker ps -aq -f status=exited -f name="$CONTAINER_NAME")" ]; then
+  docker start "$CONTAINER_NAME"
+fi
+
+# Execute container interactively
+docker exec -it -u "$USER_NAME" "$CONTAINER_NAME" "$SHELL"

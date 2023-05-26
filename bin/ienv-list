@@ -1,0 +1,40 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+
+# Check if docker executable is in path
+if ! which docker >/dev/null; then
+  echo "Cannot find docker executable."
+fi
+
+# Parse the options
+options=$(
+  getopt \
+    --longoptions help --name "$(basename "$0")" \
+    --options "" \
+    -- "$@"
+)
+if [ $? -eq 1 ]; then
+  echo "Error: Incorrect options provided"
+  exit 1
+fi
+
+# Parse input arguments
+eval set -- "$options"
+while true; do
+  case "$1" in
+    --help)
+      echo "Usage: $0 [--help]"
+      echo "    --help            Display this help message."
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+  esac
+  shift
+done
+
+docker images -f "reference=ienv-*" "$@"

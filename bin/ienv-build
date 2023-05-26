@@ -1,0 +1,58 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+
+# Check if docker executable is in path
+if ! which docker >/dev/null; then
+  echo "Cannot find docker executable."
+fi
+
+# Parse the options
+options=$(
+  getopt \
+    --longoptions help,name: --name "$(basename "$0")" \
+    --options "" \
+    -- "$@"
+)
+if [ $? -eq 1 ]; then
+  echo "Error: Incorrect options provided"
+  exit 1
+fi
+
+# Parse input arguments
+eval set -- "$options"
+while true; do
+  case "$1" in
+    --help)
+      echo "Usage: $0 [--help] [options] dockerfile"
+      echo "    --help            Display this help message."
+      echo "    --name            Name of the cenv image."
+      exit 0
+      ;;
+    --name)
+      shift
+      IMAGE_NAME="ienv-$1"
+      ;;
+    --)
+      shift
+      break
+      ;;
+  esac
+  shift
+done
+
+DOCKER_FILE=$1
+
+if [ ! -f "$DOCKER_FILE" ]; then
+  echo "Error: missing dockerfile."
+  exit 1
+fi
+
+if [ -z "$IMAGE_NAME" ]; then
+  IMAGE_NAME=$(basename "$DOCKER_FILE")
+  IMAGE_NAME="ienv-${IMAGE_NAME%.*}"
+fi
+
+echo "Building $IMAGE_NAME"
+docker build -t "$IMAGE_NAME" -f "$DOCKER_FILE" .

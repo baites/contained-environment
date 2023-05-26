@@ -1,0 +1,114 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+
+# Check if docker executable is in path
+if ! which docker >/dev/null; then
+  echo "Cannot find docker executable."
+fi
+
+# Parsing options
+options=$(
+  getopt \
+    --longoptions help,name:,srcdir:, --name "$(basename "$0")" \
+    --options "" \
+    -- "$@"
+)
+if [ $? -eq 1 ]; then
+  echo "Incorrect options provided"
+  exit 1
+fi
+
+# Use current path as working directory
+SRCDIR=$(pwd)
+BSNAME=$(basename "$SRCDIR")
+
+# Parse input arguments
+eval set -- "$options"
+while true; do
+  case "$1" in
+    --help)
+      echo "Usage: $0 [--help] image -- [docker args]"
+      echo "    --help            Display this help message."
+      echo "    --name            Override the default container name."
+      echo "    --srcdir PATH     Source directory (default: $SRCDIR)."
+      exit 0
+      ;;
+    --name)
+      shift
+      CNAME=$1
+      ;;
+    --srcdir)
+      shift
+      SRCDIR=$1
+      BSNAME=$(basename "$SRCDIR")
+      ;;
+    --)
+      shift
+      break
+      ;;
+  esac
+  shift
+done
+
+# Check for image no provided
+DOCKER_IMAGE_NAME="$1"
+if [ -z "$DOCKER_IMAGE_NAME" ]; then
+  echo "A docker image needs to be provided."
+  exit 1
+fi
+
+# Check if docker image exist
+DOCKER_IMAGE_ID="$(docker images -q "$DOCKER_IMAGE_NAME")"
+if [ -z "$DOCKER_IMAGE_ID" ]; then
+  echo "Unknown docker image $DOCKER_IMAGE_NAME."
+  exit 1
+fi
+
+# Collect user information
+USER_ID=$(id -u)
+USER_NAME=$(id -un)
+GROUP_ID=$(id -g)
+GROUP_NAME=$(id -gn)
+
+# Define container name
+IMAGE_NAME=$1
+if [ -z "$CNAME" ]; then
+  CNAME="cenv-${IMAGE_NAME#ienv-}-$BSNAME-$USER_NAME"
+fi
+
+# Set destination directory
+DSTDIR="/home/$USER_NAME/$BSNAME"
+
+# Create container
+echo "Create $CNAME."
+args=("${@:2:${#@}}")
+CMD="docker create \
+--name $CNAME \
+--mount type=bind,source=$SRCDIR,target=$DSTDIR \
+--mount type=bind,source=$HOME/.ssh,target=/home/$USER_NAME/.ssh,readonly \
+--mount type=bind,source=$HOME/.Xauthority,target=/home/$USER_NAME/.Xauthority,readonly \
+--mount type=bind,source=/tmp/.X11-unix,target=/tmp/.X11-unix \
+--env DISPLAY=$DISPLAY \
+--workdir $DSTDIR \
+-t --network=host ${args[*]} $IMAGE_NAME"
+CONTAINER_ID=$($CMD)
+
+# Start enviroment
+echo "Start $CNAME"
+docker start "$CONTAINER_ID" >/dev/null
+
+# Configure user
+CMD="useradd -u $USER_ID -N $USER_NAME && \
+groupadd -g $GROUP_ID $GROUP_NAME && \
+usermod -g $GROUP_NAME $USER_NAME &&\
+echo '$USER_NAME ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/$USER_NAME &&\
+chown $USER_NAME:$GROUP_NAME /home/$USER_NAME &&\
+echo 'PS1=\"[\u@${CONTAINER_ID:1:12} \W]\$ \"' >> /home/$USER_NAME/.bashrc"
+echo "Mirror user $USER_NAME:$GROUP_NAME in $CNAME"
+docker exec "$CONTAINER_ID" /bin/bash -c "$CMD"
+
+# Stop container
+echo "Stop enviroment $CNAME"
+docker stop "$CONTAINER_ID" >/dev/null
